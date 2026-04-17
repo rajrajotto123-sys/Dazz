@@ -13,15 +13,9 @@ import {
   LogOut, 
   X,
   Image as ImageIcon,
-  Upload
+  Upload,
+  ShieldCheck
 } from 'lucide-react';
-import { 
-  onAuthStateChanged, 
-  GoogleAuthProvider, 
-  signInWithPopup, 
-  signOut,
-  User 
-} from 'firebase/auth';
 import { 
   collection, 
   onSnapshot, 
@@ -43,46 +37,61 @@ interface AdminPanelProps {
 }
 
 export default function AdminPanel({ settings }: AdminPanelProps) {
-  const [user, setUser] = useState<User | null>(auth.currentUser);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [isUnlocked, setIsUnlocked] = useState(() => {
+    return sessionStorage.getItem('admin_access') === 'true';
+  });
+  const [passInput, setPassInput] = useState('');
+  const [error, setError] = useState(false);
   const [activeSubTab, setActiveSubTab] = useState<'products' | 'orders' | 'settings'>('orders');
 
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-      setIsAdmin(u?.email === 'rajrajotto123@gmail.com');
-    });
-    return unsub;
-  }, []);
-
-  const login = async () => {
-    const provider = new GoogleAuthProvider();
-    try {
-      await signInWithPopup(auth, provider);
-    } catch (err) {
-      console.error(err);
+  const handleUnlock = (e: React.FormEvent) => {
+    e.preventDefault();
+    const correctPass = settings.adminPass || 'admin123';
+    if (passInput === correctPass) {
+      setIsUnlocked(true);
+      sessionStorage.setItem('admin_access', 'true');
+      setError(false);
+    } else {
+      setError(true);
+      setTimeout(() => setError(false), 2000);
     }
   };
 
-  const logout = () => signOut(auth);
+  const logout = () => {
+    setIsUnlocked(false);
+    sessionStorage.removeItem('admin_access');
+  };
 
-  if (!isAdmin) {
+  if (!isUnlocked) {
     return (
       <div className="max-w-md mx-auto mt-20 p-10 glass-card bg-[#111114] text-center space-y-8 animate-float">
         <div className="mx-auto w-24 h-24 bg-cyber-purple/10 rounded-[32px] flex items-center justify-center border border-cyber-purple/20">
-          <Lock className="w-10 h-10 text-cyber-purple drop-shadow-[0_0_10px_rgba(157,0,255,0.4)]" />
+          <Lock className={cn("w-10 h-10 text-cyber-purple transition-all duration-300", error && "text-red-500 scale-110")} />
         </div>
         <div>
-          <h2 className="text-3xl font-bold text-white mb-2">Restricted Access</h2>
-          <p className="text-white/30 text-sm leading-relaxed">Authorized personnel only. Access attempt will be logged.</p>
+          <h2 className="text-3xl font-bold text-white mb-2">Terminal Locked</h2>
+          <p className="text-white/30 text-sm leading-relaxed">Enter administrative passcode to initialize node.</p>
         </div>
-        <button 
-          onClick={login}
-          className="w-full h-16 glass-button bg-white text-black font-bold flex items-center justify-center gap-3 rounded-[24px]"
-        >
-          <LogIn className="w-6 h-6" />
-          Authenticate Admin
-        </button>
+        <form onSubmit={handleUnlock} className="space-y-4">
+          <input 
+            type="password"
+            value={passInput}
+            onChange={(e) => setPassInput(e.target.value)}
+            placeholder="ACCESS CODE"
+            className={cn(
+              "admin-input text-center tracking-[0.4em] font-black",
+              error && "border-red-500/50 bg-red-500/5 animate-shake"
+            )}
+            autoFocus
+          />
+          <button 
+            type="submit"
+            className="w-full h-16 glass-button bg-white text-black font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 rounded-[24px]"
+          >
+            <LogIn className="w-5 h-5" />
+            Initialize Admin
+          </button>
+        </form>
       </div>
     );
   }
@@ -91,12 +100,12 @@ export default function AdminPanel({ settings }: AdminPanelProps) {
     <div className="space-y-8 pb-32 max-w-2xl mx-auto px-4">
       <div className="flex justify-between items-center bg-[#1c1c1e] p-5 rounded-[32px] border border-white/5">
         <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl overflow-hidden border border-white/10 ring-2 ring-cyber-blue/20">
-            <img src={user?.photoURL || ''} alt="Admin" className="w-full h-full object-cover" />
+          <div className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center border border-white/10 ring-2 ring-cyber-blue/20">
+            <ShieldCheck className="text-cyber-blue w-8 h-8" />
           </div>
           <div>
             <p className="text-[10px] text-white/40 uppercase font-black tracking-widest mb-0.5">Terminal Active</p>
-            <p className="font-bold text-white text-lg">{user?.displayName}</p>
+            <p className="font-bold text-white text-lg italic">ADMIN NODE</p>
           </div>
         </div>
         <button 
@@ -486,6 +495,10 @@ function SettingsManager({ settings }: { settings: Settings }) {
           <div className="space-y-1">
             <label className="text-[10px] font-bold text-white/30 uppercase tracking-[0.2em] ml-2">Node Address</label>
             <textarea placeholder="Main Distribution Hub..." rows={2} className="admin-input resize-none" value={form.address} onChange={e => setForm({...form, address: e.target.value})} />
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-white/30 uppercase tracking-[0.2em] ml-2">Admin Passcode</label>
+            <input type="password" placeholder="Terminal Password" className="admin-input" value={form.adminPass || ''} onChange={e => setForm({...form, adminPass: e.target.value})} />
           </div>
         </div>
         <button 

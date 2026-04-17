@@ -141,7 +141,7 @@ export default function App() {
         onInfoClick={() => setIsInfoOpen(true)} 
         onCartClick={() => setIsCartOpen(true)}
         cartCount={cartCount}
-        isAdmin={user?.email === 'rajrajotto123@gmail.com'}
+        isAdmin={true}
         onAdminClick={() => setActiveTab('admin')}
       />
 

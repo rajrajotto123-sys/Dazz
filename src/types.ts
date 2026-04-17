@@ -34,6 +34,7 @@ export interface Settings {
   email: string;
   address: string;
   bannerEnabled: boolean;
+  adminPass?: string;
 }
 
 export interface BannerImage {
