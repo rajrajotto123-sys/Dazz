@@ -161,6 +161,7 @@ function ProductManager() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({ name: '', description: '', price: '', imageUrl: '' });
   const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -200,6 +201,7 @@ function ProductManager() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
+    setSaveError(null);
     try {
       const data = {
         ...formData,
@@ -216,7 +218,10 @@ function ProductManager() {
         });
       }
       resetForm();
-    } catch (err) { handleFirestoreError(err, OperationType.WRITE, 'products'); }
+    } catch (err: any) { 
+      setSaveError(err.message || 'Transmission error');
+      handleFirestoreError(err, OperationType.WRITE, 'products'); 
+    }
     finally { setIsSaving(false); }
   };
 
@@ -291,9 +296,12 @@ function ProductManager() {
             <button 
               disabled={isSaving}
               type="submit" 
-              className="w-full h-16 bg-white text-black font-bold rounded-2xl active:scale-[0.98] transition-transform disabled:opacity-50"
+              className={cn(
+                "w-full h-16 text-black font-bold rounded-2xl active:scale-[0.98] transition-transform disabled:opacity-50",
+                saveError ? "bg-red-500 text-white" : "bg-white"
+              )}
             >
-              {isSaving ? 'Processing Gateway...' : editingId ? 'Commit Update' : 'Initialize Product'}
+              {isSaving ? 'Processing Gateway...' : saveError ? saveError : editingId ? 'Commit Update' : 'Initialize Product'}
             </button>
           </motion.form>
         )}
@@ -429,6 +437,7 @@ function SettingsManager({ settings }: { settings: Settings }) {
   const [banners, setBanners] = useState<BannerImage[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [errorText, setErrorText] = useState<string | null>(null);
   const bannerFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -440,18 +449,26 @@ function SettingsManager({ settings }: { settings: Settings }) {
 
   const saveInfo = async () => {
     setIsSaving(true);
+    setErrorText(null);
     try { 
       await setDoc(doc(db, 'settings', 'config'), { ...form }, { merge: true }); 
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
     }
-    catch (err) { handleFirestoreError(err, OperationType.UPDATE, 'settings'); }
+    catch (err: any) { 
+      setErrorText(err.message || 'Sync failed');
+      handleFirestoreError(err, OperationType.UPDATE, 'settings'); 
+    }
     finally { setIsSaving(false); }
   };
 
   const handleBannerUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (file.size > 800000) {
+        alert('File too large. Maximum size is 800KB for terminal storage.');
+        return;
+      }
       const reader = new FileReader();
       reader.onloadend = async () => {
         try {
@@ -460,7 +477,10 @@ function SettingsManager({ settings }: { settings: Settings }) {
             order: banners.length, 
             createdAt: serverTimestamp() 
           });
-        } catch (err) { handleFirestoreError(err, OperationType.CREATE, 'banners'); }
+        } catch (err: any) { 
+          alert('Upload failed: ' + (err.message || 'Permission denied or quota exceeded'));
+          handleFirestoreError(err, OperationType.CREATE, 'banners'); 
+        }
       };
       reader.readAsDataURL(file);
     }
@@ -507,10 +527,11 @@ function SettingsManager({ settings }: { settings: Settings }) {
           className={cn(
             "w-full h-16 text-white font-bold rounded-[22px] active:scale-[0.98] transition-all shadow-xl",
             showSuccess ? "bg-cyber-green shadow-cyber-green/20" : "bg-cyber-purple shadow-cyber-purple/10",
+            errorText && "bg-red-500 shadow-red-500/20",
             isSaving && "opacity-50 cursor-wait"
           )}
         >
-          {isSaving ? 'Synchronizing Nodes...' : showSuccess ? 'Config Committed' : 'Commit Changes'}
+          {isSaving ? 'Synchronizing Nodes...' : errorText ? errorText : showSuccess ? 'Config Committed' : 'Commit Changes'}
         </button>
       </div>
 
