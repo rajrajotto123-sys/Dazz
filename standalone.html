@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inzara Protocol - Standing Terminal</title>
+    
+    <!-- CDNs -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://unpkg.com/framer-motion@12.23.24/dist/framer-motion.js"></script>
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+        
+        :root {
+            --cyber-blue: #00f2ff;
+            --cyber-purple: #7000ff;
+            --cyber-pink: #ff00c1;
+            --cyber-green: #39ff14;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #050505;
+            color: #ffffff;
+            overflow-x: hidden;
+        }
+
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 32px;
+        }
+
+        .glow-border:hover {
+            border-color: var(--cyber-blue);
+            box-shadow: 0 0 20px rgba(0, 242, 255, 0.1);
+        }
+
+        .admin-input {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 1rem 1.25rem;
+            color: white;
+            outline: none;
+            transition: all 0.2s;
+        }
+
+        .admin-input:focus {
+            border-color: var(--cyber-purple);
+            background: rgba(255, 255, 255, 0.08);
+            box-shadow: 0 0 15px rgba(112, 0, 255, 0.1);
+        }
+
+        .glass-button {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 20px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .glass-button:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .animate-float { animation: float 4s ease-in-out infinite; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+        const { motion, AnimatePresence } = FramerMotion;
+
+        // --- Firebase Configuration ---
+        const firebaseConfig = {
+            projectId: "gen-lang-client-0998455321",
+            appId: "1:242764407392:web:f13a39dd31d5d18b3dd905",
+            apiKey: "AIzaSyBshI4DQW3Y4brA3R2aVpEiPFmsnPLkILw",
+            authDomain: "gen-lang-client-0998455321.firebaseapp.com",
+            firestoreDatabaseId: "ai-studio-701b77b8-7c01-4bd9-95d9-88db948d1328",
+            storageBucket: "gen-lang-client-0998455321.firebasestorage.app",
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.app().firestore(firebaseConfig.firestoreDatabaseId);
+
+        // --- Utilities ---
+        const formatCurrency = (amount) => `৳${new Intl.NumberFormat('en-US').format(amount)}`;
+        
+        const generateOrderId = () => {
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+            let result = '';
+            for (let i = 0; i < 8; i++) {
+                result += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return result;
+        };
+
+        // --- Components ---
+
+        const Icon = ({ name, className = "" }) => {
+            useEffect(() => { lucide.createIcons(); }, [name]);
+            return <i data-lucide={name} className={className}></i>;
+        };
+
+        const Banner = ({ images }) => {
+            const [current, setCurrent] = useState(0);
+
+            useEffect(() => {
+                const timer = setInterval(() => {
+                    setCurrent(prev => (prev + 1) % images.length);
+                }, 6000);
+                return () => clearInterval(timer);
+            }, [images.length]);
+
+            if (images.length === 0) return null;
+
+            return (
+                <div className="relative h-64 w-full rounded-[32px] overflow-hidden group border border-white/5 bg-black">
+                    <AnimatePresence mode="wait">
+                        <motion.div
+                            key={images[current]?.id}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="absolute inset-0"
+                        >
+                            <img src={images[current]?.url} className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent" />
+                            <div className="absolute bottom-8 left-8">
+                                <h2 className="text-3xl font-black uppercase tracking-tight">{images[current]?.text || "Protocol Visual"}</h2>
+                            </div>
+                        </motion.div>
+                    </AnimatePresence>
+                </div>
+            );
+        };
+
+        const ProductCard = ({ product, onAddToCart, onBuyNow }) => (
+            <div className="glass-card bg-[#1c1c1e] p-6 space-y-4 group">
+                <div className="relative aspect-[16/10] rounded-[24px] overflow-hidden bg-black">
+                    <img src={product.imageUrl} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                    <div className="absolute top-4 right-4 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 text-sm font-bold">
+                        {formatCurrency(product.price)}
+                    </div>
+                </div>
+                <div className="flex justify-between items-end">
+                    <div className="min-w-0 pr-4">
+                        <h3 className="text-xl font-bold uppercase truncate">{product.name}</h3>
+                        <p className="text-sm text-white/40 line-clamp-1">{product.description}</p>
+                    </div>
+                    <div className="flex gap-2 shrink-0">
+                        <button onClick={() => onAddToCart(product)} className="h-14 w-14 glass-button text-white/40 hover:text-white">
+                            <Icon name="shopping-bag" />
+                        </button>
+                        <button onClick={() => onBuyNow(product)} className="h-14 px-8 bg-white text-black font-bold rounded-2xl active:scale-95 shadow-lg">Buy</button>
+                    </div>
+                </div>
+            </div>
+        );
+
+        // --- Main App ---
+
+        function App() {
+            const [activeTab, setActiveTab] = useState('home');
+            const [products, setProducts] = useState([]);
+            const [banners, setBanners] = useState([]);
+            const [cart, setCart] = useState([]);
+            const [isCartOpen, setIsCartOpen] = useState(false);
+            const [user, setUser] = useState(null);
+            const isAdmin = user?.email === 'rajrajotto123@gmail.com';
+
+            useEffect(() => {
+                auth.onAuthStateChanged(setUser);
+                
+                const unsubProducts = db.collection('products').orderBy('createdAt', 'desc').onSnapshot(snap => {
+                    setProducts(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+                });
+                
+                const unsubBanners = db.collection('banners').onSnapshot(snap => {
+                    setBanners(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+                });
+
+                return () => { unsubProducts(); unsubBanners(); };
+            }, []);
+
+            const addToCart = (p) => {
+                setCart(prev => {
+                    const existing = prev.find(i => i.id === p.id);
+                    if (existing) return prev.map(i => i.id === p.id ? { ...i, q: i.q + 1 } : i);
+                    return [...prev, { ...p, q: 1 }];
+                });
+            };
+
+            return (
+                <div className="min-h-screen pb-32">
+                    {/* Header */}
+                    <div className="fixed top-0 left-0 w-full z-40 px-6 pt-6">
+                        <div className="max-w-7xl mx-auto flex justify-between items-center glass-card bg-black/40 p-4 h-20">
+                            <div className="flex items-center gap-4 cursor-pointer" onClick={() => setActiveTab('home')}>
+                                <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center p-2">
+                                    <Icon name="shield-check" className="text-black w-8 h-8" />
+                                </div>
+                                <h1 className="text-2xl font-black uppercase tracking-tighter">Inzara</h1>
+                            </div>
+                            <div className="flex gap-4">
+                                {isAdmin && (
+                                    <button onClick={() => setActiveTab('admin')} className="w-12 h-12 glass-button text-white/40 hover:text-white">
+                                        <Icon name="settings" />
+                                    </button>
+                                )}
+                                <button onClick={() => setIsCartOpen(true)} className="h-12 px-6 glass-button gap-3">
+                                    <Icon name="shopping-bag" className="w-5 h-5" />
+                                    <span className="font-bold">{cart.reduce((a, b) => a + b.q, 0)}</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Main Content */}
+                    <main className="max-w-7xl mx-auto px-6 pt-32">
+                        <AnimatePresence mode="wait">
+                            {activeTab === 'home' && (
+                                <motion.div key="home" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-10">
+                                    <Banner images={banners} />
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                        {products.map(p => (
+                                            <ProductCard key={p.id} product={p} onAddToCart={addToCart} onBuyNow={(p) => { addToCart(p); setIsCartOpen(true); }} />
+                                        ))}
+                                    </div>
+                                </motion.div>
+                            )}
+                            
+                            {activeTab === 'admin' && isAdmin && (
+                                <AdminTerminal key="admin" />
+                            )}
+                        </AnimatePresence>
+                    </main>
+
+                    {/* Navigation Rail */}
+                    <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-40">
+                         <div className="flex bg-[#1c1c1e] p-2 rounded-[32px] border border-white/5 shadow-2xl gap-2">
+                            {[
+                                { id: 'home', label: 'Terminal', icon: 'home' },
+                                { id: 'status', label: 'Tracing', icon: 'clipboard-list' },
+                                { id: 'cart', label: 'Payload', icon: 'shopping-bag' }
+                            ].map(btn => (
+                                <button
+                                    key={btn.id}
+                                    onClick={() => {
+                                        if (btn.id === 'cart') setIsCartOpen(true);
+                                        else setActiveTab(btn.id);
+                                    }}
+                                    className={`flex items-center gap-3 px-6 py-4 rounded-[24px] font-bold transition-all ${
+                                        activeTab === btn.id ? 'bg-white text-black' : 'text-white/40 hover:text-white'
+                                    }`}
+                                >
+                                    <Icon name={btn.icon} />
+                                    <span className="hidden sm:inline">{btn.label}</span>
+                                </button>
+                            ))}
+                         </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function AdminTerminal() {
+            const [view, setView] = useState('orders');
+            return (
+                <div className="max-w-4xl mx-auto space-y-8 pb-32">
+                    <div className="flex gap-2">
+                        {['orders', 'products', 'settings'].map(v => (
+                            <button
+                                key={v}
+                                onClick={() => setView(v)}
+                                className={`px-6 py-4 rounded-2xl font-bold uppercase tracking-widest text-xs flex-grow transition-all ${
+                                    view === v ? 'bg-cyber-blue text-black shadow-lg shadow-cyber-blue/20' : 'bg-white/5 text-white/40'
+                                }`}
+                            >
+                                {v}
+                            </button>
+                        ))}
+                    </div>
+                    
+                    <div className="glass-card p-10 bg-black/40 border-white/5">
+                        <h2 className="text-3xl font-black uppercase mb-8">{view} System Control</h2>
+                        {/* Manager logic would be expanded here */}
+                        <div className="text-white/20 italic">Core protocol logic active. Database link established.</div>
+                    </div>
+                </div>
+            );
+        }
+
+        const container = document.getElementById('root');
+        const root = ReactDOM.createRoot(container);
+        root.render(<App />);
+    </script>
+</body>
+</html>

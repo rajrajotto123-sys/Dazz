@@ -1,0 +1,74 @@
+{
+  "entities": {
+    "Product": {
+      "title": "Product",
+      "description": "An e-commerce product",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Product name" },
+        "description": { "type": "string", "description": "Product description" },
+        "price": { "type": "number", "description": "Product price" },
+        "imageUrl": { "type": "string", "description": "URL to the product image" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["name", "price", "imageUrl"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "A customer order",
+      "type": "object",
+      "properties": {
+        "customerName": { "type": "string", "description": "Customer name" },
+        "customerPhone": { "type": "string", "description": "Customer phone number" },
+        "customerAddress": { "type": "string", "description": "Customer delivery address" },
+        "customerSize": { "type": "string", "description": "Product size (optional)" },
+        "customerColor": { "type": "string", "description": "Product color (optional)" },
+        "products": { "type": "array", "description": "List of products in the order" },
+        "totalAmount": { "type": "number", "description": "Total order amount" },
+        "status": { "type": "string", "enum": ["Pending", "Confirmed", "Cancelled"], "description": "Order status" },
+        "invoiceId": { "type": "string", "description": "Unique invoice identifier" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["customerName", "customerPhone", "customerAddress", "products", "totalAmount", "status", "invoiceId"]
+    },
+    "Settings": {
+      "title": "Settings",
+      "description": "Global shop settings",
+      "type": "object",
+      "properties": {
+        "phone": { "type": "string", "description": "Contact phone" },
+        "email": { "type": "string", "description": "Contact email" },
+        "address": { "type": "string", "description": "Business address" },
+        "bannerEnabled": { "type": "boolean", "description": "Toggle to show/hide the banner slideshow" }
+      }
+    },
+    "BannerImage": {
+      "title": "Banner Image",
+      "description": "An image for the banner slideshow",
+      "type": "object",
+      "properties": {
+        "url": { "type": "string", "description": "URL to the banner image" },
+        "order": { "type": "number", "description": "Display order" }
+      },
+      "required": ["url"]
+    }
+  },
+  "firestore": {
+    "/settings/config": {
+      "schema": "Settings",
+      "description": "Single document for website info and banner toggle"
+    },
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Collection of products"
+    },
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Collection of customer orders"
+    },
+    "/banners/{bannerId}": {
+      "schema": "BannerImage",
+      "description": "Collection of images for the banner"
+    }
+  }
+}

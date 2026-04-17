@@ -1,0 +1,115 @@
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: settings
+// Document ID: config
+// Fields:
+//   - phone: string
+//   - email: string
+//   - address: string
+//   - bannerEnabled: bool
+//
+// Collection: products
+// Document ID: [auto-generated]
+// Fields:
+//   - name: string
+//   - description: string
+//   - price: number
+//   - imageUrl: string
+//   - createdAt: timestamp
+//
+// Collection: orders
+// Document ID: [auto-generated]
+// Fields:
+//   - customerName: string
+//   - customerPhone: string
+//   - customerAddress: string
+//   - customerSize: string (optional)
+//   - customerColor: string (optional)
+//   - products: list (array of objects)
+//   - totalAmount: number
+//   - status: string (Pending, Confirmed, Cancelled)
+//   - invoiceId: string
+//   - createdAt: timestamp
+//
+// Collection: banners
+// Document ID: [auto-generated]
+// Fields:
+//   - url: string
+//   - order: number
+//
+// ===============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        (request.auth.token.email == "rajrajotto123@gmail.com" && request.auth.token.email_verified == true);
+    }
+
+    function isValidProduct(data) {
+      return data.keys().hasAll(['name', 'price', 'imageUrl']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 200 &&
+             data.price is number && data.price >= 0 &&
+             data.imageUrl is string && 
+             (data.imageUrl.matches("^https?://.*") || data.imageUrl.matches("^data:image/.*"));
+    }
+
+    function isValidOrder(data) {
+      return data.keys().hasAll(['customerName', 'customerPhone', 'customerAddress', 'products', 'totalAmount', 'status', 'invoiceId']) &&
+             data.customerName is string && data.customerName.size() > 0 && data.customerName.size() < 200 &&
+             data.customerPhone is string && data.customerPhone.size() > 0 && data.customerPhone.size() < 30 &&
+             data.customerAddress is string && data.customerAddress.size() > 0 && data.customerAddress.size() < 1000 &&
+             data.products is list && data.products.size() > 0 &&
+             data.totalAmount is number && data.totalAmount >= 0 &&
+             data.status in ['Pending', 'Confirmed', 'Cancelled'] &&
+             data.invoiceId is string;
+    }
+
+    function isValidSettings(data) {
+      return data.phone is string &&
+             data.email is string &&
+             data.address is string &&
+             data.bannerEnabled is bool;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /settings/config {
+      allow read: if true;
+      allow write: if isAdmin() && isValidSettings(request.resource.data);
+    }
+
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if isAdmin() && isValidProduct(request.resource.data);
+    }
+
+    match /banners/{bannerId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /orders/{orderId} {
+      // Allow customers to create orders and check status by ID
+      allow create: if isValidOrder(request.resource.data);
+      allow get: if true; 
+      
+      // Admin has full control
+      allow list, update, delete: if isAdmin();
+    }
+  }
+}
