@@ -57,9 +57,23 @@ export default function App() {
 
   useEffect(() => {
     const unsubProducts = onSnapshot(
-      query(collection(db, 'products'), orderBy('createdAt', 'desc')),
+      collection(db, 'products'),
       (snapshot) => {
-        setProducts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product)));
+        const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product));
+        list.sort((a, b) => {
+          const getMillis = (item: Product) => {
+            if (!item.createdAt) return 0;
+            if (typeof (item.createdAt as any).toMillis === 'function') return (item.createdAt as any).toMillis();
+            if (typeof (item.createdAt as any).seconds === 'number') return (item.createdAt as any).seconds * 1000;
+            const parsed = new Date(item.createdAt as any).getTime();
+            return isNaN(parsed) ? 0 : parsed;
+          };
+          return getMillis(b) - getMillis(a);
+        });
+        setProducts(list);
+      },
+      (error) => {
+        console.error('Error fetching products:', error);
       }
     );
 

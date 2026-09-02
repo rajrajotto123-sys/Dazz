@@ -182,31 +182,43 @@ function ProductManager() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteSuccess, setDeleteSuccess] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    return onSnapshot(query(collection(db, 'products'), orderBy('createdAt', 'desc')), (snap) => {
-      setProducts(snap.docs.map(d => ({ id: d.id, ...d.data() } as Product)));
+    return onSnapshot(collection(db, 'products'), (snap) => {
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() } as Product));
+      list.sort((a, b) => {
+        const getMillis = (item: Product) => {
+          if (!item.createdAt) return 0;
+          if (typeof (item.createdAt as any).toMillis === 'function') return (item.createdAt as any).toMillis();
+          if (typeof (item.createdAt as any).seconds === 'number') return (item.createdAt as any).seconds * 1000;
+          const parsed = new Date(item.createdAt as any).getTime();
+          return isNaN(parsed) ? 0 : parsed;
+        };
+        return getMillis(b) - getMillis(a);
+      });
+      setProducts(list);
+    }, (err) => {
+      console.error('Admin products listener error:', err);
     });
   }, []);
 
-  const MAX_IMAGE_BYTES = 2 * 1024 * 1024; // 2 MB (2,048 KB)
-  const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+  const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // Accept files up to 10 MB and compress gracefully
 
   const processImageFile = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
-      // Enforce 2 MB limit
       if (file.size > MAX_IMAGE_BYTES) {
-        const sizeMb = (file.size / (1024 * 1024)).toFixed(2);
-        reject(new Error(`File size (${sizeMb} MB) exceeds the 2 MB (2,048 KB) maximum limit. Please select an image under 2 MB.`));
+        const sizeMb = (file.size / (1024 * 1024)).toFixed(1);
+        reject(new Error(`File size (${sizeMb} MB) is too large. Please select an image under 10 MB.`));
         return;
       }
 
       // Format validation
       const type = file.type.toLowerCase();
-      const validExtension = /\.(jpe?g|png|webp)$/i.test(file.name);
-      if (!ALLOWED_MIME_TYPES.includes(type) && !validExtension) {
+      const validExtension = /\.(jpe?g|png|webp|avif|gif)$/i.test(file.name);
+      if (!type.startsWith('image/') && !validExtension) {
         reject(new Error('Unsupported file format. Please upload a JPG, PNG, or WEBP image.'));
         return;
       }
@@ -217,38 +229,57 @@ function ProductManager() {
         const img = new Image();
         img.onerror = () => reject(new Error('Failed to parse image data.'));
         img.onload = () => {
-          // Preserve high image quality (max dimension 1600px for crisp display)
-          const maxDim = 1600;
-          let width = img.naturalWidth || img.width;
-          let height = img.naturalHeight || img.height;
+          try {
+            // Adaptive compression loop ensuring the final base64 string length is safely under 500,000 chars
+            // (Firestore maximum document size is 1,048,576 bytes)
+            let maxDim = 1200;
+            let quality = 0.84;
+            let finalDataUrl = '';
 
-          if (width > maxDim || height > maxDim) {
-            if (width > height) {
-              height = Math.round((height * maxDim) / width);
-              width = maxDim;
-            } else {
-              width = Math.round((width * maxDim) / height);
-              height = maxDim;
+            for (let attempt = 0; attempt < 5; attempt++) {
+              let width = img.naturalWidth || img.width;
+              let height = img.naturalHeight || img.height;
+
+              if (width > maxDim || height > maxDim) {
+                if (width > height) {
+                  height = Math.round((height * maxDim) / width);
+                  width = maxDim;
+                } else {
+                  width = Math.round((width * maxDim) / height);
+                  height = maxDim;
+                }
+              }
+
+              const canvas = document.createElement('canvas');
+              canvas.width = Math.max(1, width);
+              canvas.height = Math.max(1, height);
+              const ctx = canvas.getContext('2d');
+              if (!ctx) {
+                finalDataUrl = reader.result as string;
+                break;
+              }
+
+              ctx.imageSmoothingEnabled = true;
+              ctx.imageSmoothingQuality = 'high';
+              ctx.drawImage(img, 0, 0, width, height);
+
+              // Always encode as JPEG for compact size & 100% browser rendering support
+              finalDataUrl = canvas.toDataURL('image/jpeg', quality);
+
+              // Safe size for Firestore (under ~400 KB binary)
+              if (finalDataUrl.length <= 500000) {
+                break;
+              }
+
+              // Step down dimension and quality progressively if needed
+              maxDim = Math.round(maxDim * 0.8);
+              quality = Math.max(0.55, quality - 0.1);
             }
+
+            resolve(finalDataUrl);
+          } catch (err: any) {
+            reject(new Error(err.message || 'Image processing failed.'));
           }
-
-          const canvas = document.createElement('canvas');
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) {
-            resolve(reader.result as string);
-            return;
-          }
-
-          ctx.imageSmoothingEnabled = true;
-          ctx.imageSmoothingQuality = 'high';
-          ctx.drawImage(img, 0, 0, width, height);
-
-          // Use high quality (0.92)
-          const outputMime = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
-          const dataUrl = canvas.toDataURL(outputMime, 0.92);
-          resolve(dataUrl);
         };
         img.src = reader.result as string;
       };
@@ -298,6 +329,15 @@ function ProductManager() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.name.trim()) {
+      setSaveError('Product name is required.');
+      return;
+    }
+    if (!formData.imageUrl.trim()) {
+      setSaveError('Product image is required.');
+      return;
+    }
+
     setIsSaving(true);
     setSaveError(null);
 
@@ -318,16 +358,19 @@ function ProductManager() {
 
       if (editingId) {
         await updateDoc(doc(db, 'products', editingId), data);
+        setSaveSuccess(`"${formData.name.trim()}" updated successfully!`);
       } else {
         await addDoc(collection(db, 'products'), {
           ...data,
           createdAt: serverTimestamp()
         });
+        setSaveSuccess(`"${formData.name.trim()}" added and published to store!`);
       }
+      setTimeout(() => setSaveSuccess(null), 4000);
       resetForm();
     } catch (err: any) { 
-      setSaveError(err.message || 'Transmission error saving product.');
-      handleFirestoreError(err, OperationType.WRITE, 'products'); 
+      console.error('Error saving product:', err);
+      setSaveError(err.message || 'Error saving product to database.');
     } finally {
       setIsSaving(false);
     }
@@ -362,6 +405,17 @@ function ProductManager() {
     <div className="space-y-6">
       {/* Toast notifications */}
       <AnimatePresence>
+        {saveSuccess && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 p-4 rounded-2xl flex items-center gap-3 text-sm font-bold shadow-lg"
+          >
+            <CheckCircle2 className="w-5 h-5 shrink-0" />
+            <span>{saveSuccess}</span>
+          </motion.div>
+        )}
         {deleteSuccess && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
@@ -520,7 +574,7 @@ function ProductManager() {
 
             {formData.imageUrl && (
               <div className="w-full h-44 rounded-2xl overflow-hidden border border-white/10 relative group bg-black">
-                <img src={formData.imageUrl} alt="Preview" className="w-full h-full object-cover" />
+                <img src={formData.imageUrl} alt="Preview" referrerPolicy="no-referrer" className="w-full h-full object-cover" />
                 <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/10 flex items-center gap-2">
                   <span className="text-[10px] font-bold text-white/80">Image Ready</span>
                   {formData.isPreOrder && <PreOrderBadge size="sm" />}
@@ -584,7 +638,7 @@ function ProductManager() {
             return (
               <div key={p.id} className="bg-[#1c1c1e] rounded-[28px] p-5 flex gap-5 items-center border border-white/5 hover:border-white/10 transition-colors group">
                 <div className="w-20 h-20 rounded-2xl overflow-hidden border border-white/10 bg-black flex-shrink-0 relative">
-                  <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                  <img src={p.imageUrl} alt={p.name} referrerPolicy="no-referrer" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                 </div>
                 <div className="flex-grow min-w-0">
                   <h4 className="font-bold text-white truncate text-lg">{p.name}</h4>
@@ -855,41 +909,48 @@ function SettingsManager({ settings }: { settings: Settings }) {
   const handleBannerUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const maxBytes = 2 * 1024 * 1024; // 2 MB
-      if (file.size > maxBytes) {
-        alert(`File size (${(file.size / (1024 * 1024)).toFixed(2)} MB) exceeds the 2 MB limit.`);
-        return;
-      }
-
       const reader = new FileReader();
       reader.onloadend = () => {
         const img = new Image();
         img.onload = async () => {
-          const maxDim = 1920;
-          let width = img.naturalWidth || img.width;
-          let height = img.naturalHeight || img.height;
+          let maxDim = 1400;
+          let quality = 0.82;
+          let finalUrl = '';
 
-          if (width > maxDim || height > maxDim) {
-            if (width > height) {
-              height = Math.round((height * maxDim) / width);
-              width = maxDim;
-            } else {
-              width = Math.round((width * maxDim) / height);
-              height = maxDim;
+          for (let attempt = 0; attempt < 5; attempt++) {
+            let width = img.naturalWidth || img.width;
+            let height = img.naturalHeight || img.height;
+
+            if (width > maxDim || height > maxDim) {
+              if (width > height) {
+                height = Math.round((height * maxDim) / width);
+                width = maxDim;
+              } else {
+                width = Math.round((width * maxDim) / height);
+                height = maxDim;
+              }
             }
-          }
 
-          const canvas = document.createElement('canvas');
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          let finalUrl = reader.result as string;
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.max(1, width);
+            canvas.height = Math.max(1, height);
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+              finalUrl = reader.result as string;
+              break;
+            }
 
-          if (ctx) {
             ctx.imageSmoothingEnabled = true;
             ctx.imageSmoothingQuality = 'high';
             ctx.drawImage(img, 0, 0, width, height);
-            finalUrl = canvas.toDataURL('image/jpeg', 0.88);
+            finalUrl = canvas.toDataURL('image/jpeg', quality);
+
+            if (finalUrl.length <= 500000) {
+              break;
+            }
+
+            maxDim = Math.round(maxDim * 0.8);
+            quality = Math.max(0.55, quality - 0.1);
           }
 
           try {
@@ -899,8 +960,8 @@ function SettingsManager({ settings }: { settings: Settings }) {
               createdAt: serverTimestamp() 
             });
           } catch (err: any) { 
-            alert('Upload failed: ' + (err.message || 'Permission denied or quota exceeded'));
-            handleFirestoreError(err, OperationType.CREATE, 'banners'); 
+            alert('Banner upload failed: ' + (err.message || 'Permission denied or quota exceeded'));
+            console.error('Banner upload error:', err);
           }
         };
         img.src = reader.result as string;

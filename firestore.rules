@@ -65,8 +65,8 @@ service cloud.firestore {
              data.name is string && data.name.size() > 0 && data.name.size() < 200 &&
              (!('price' in data) || data.price == null || (data.price is number && data.price >= 0)) &&
              (!('isPreOrder' in data) || data.isPreOrder is bool) &&
-             data.imageUrl is string && data.imageUrl.size() < 1000000 &&
-             (data.imageUrl.matches("^https?://.*") || data.imageUrl.matches("^data:image/.*"));
+             (!('description' in data) || data.description == null || data.description is string) &&
+             data.imageUrl is string && data.imageUrl.size() > 0 && data.imageUrl.size() < 1048000;
     }
 
     function isValidOrder(data) {

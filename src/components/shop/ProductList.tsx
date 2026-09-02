@@ -14,10 +14,13 @@ export default function ProductList({ products, onAddToCart, onBuyNow }: Product
   if (products.length === 0) {
     return (
       <div className="py-20 text-center space-y-4">
-        <div className="mx-auto w-20 h-20 bg-white/5 rounded-[28px] flex items-center justify-center border border-white/10 animate-pulse">
+        <div className="mx-auto w-20 h-20 bg-white/5 rounded-[28px] flex items-center justify-center border border-white/10">
           <Search className="w-8 h-8 text-white/20" />
         </div>
-        <p className="text-white/30 font-bold uppercase tracking-widest text-[10px]">Archiving Inventory...</p>
+        <div>
+          <p className="text-white/50 font-bold uppercase tracking-widest text-xs">No Products in Catalog</p>
+          <p className="text-white/20 text-xs mt-1">Uploaded products will appear here immediately.</p>
+        </div>
       </div>
     );
   }

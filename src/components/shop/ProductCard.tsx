@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { Product } from '../../types';
 import { formatCurrency } from '../../lib/utils';
-import { Plus, ShoppingBag } from 'lucide-react';
+import { Plus, ShoppingBag, Package } from 'lucide-react';
 import PreOrderBadge from '../common/PreOrderBadge';
 
 interface ProductCardProps {
@@ -14,6 +14,7 @@ interface ProductCardProps {
 }
 
 export default function ProductCard({ product, onAddToCart, onBuyNow, isLarge }: ProductCardProps) {
+  const [imgError, setImgError] = useState(false);
   const hasPrice = product.price !== undefined && product.price !== null && !isNaN(Number(product.price));
   const hasPreOrder = Boolean(product.isPreOrder);
 
@@ -23,13 +24,22 @@ export default function ProductCard({ product, onAddToCart, onBuyNow, isLarge }:
         whileTap={{ scale: 0.98 }}
         className="glass-card bg-[#1c1c1e] p-6 space-y-4 group cursor-pointer border-white/5 hover:border-white/20 transition-all duration-500"
       >
-        <div className="relative aspect-[16/10] rounded-[24px] overflow-hidden bg-black">
-          <img 
-            src={product.imageUrl} 
-            alt={product.name} 
-            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+        <div className="relative aspect-[16/10] rounded-[24px] overflow-hidden bg-black/60 flex items-center justify-center">
+          {!imgError && product.imageUrl ? (
+            <img 
+              src={product.imageUrl} 
+              alt={product.name} 
+              referrerPolicy="no-referrer"
+              onError={() => setImgError(true)}
+              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center p-6 text-center space-y-2">
+              <Package className="w-12 h-12 text-white/20" />
+              <p className="text-white/40 font-bold text-xs uppercase tracking-wider">{product.name}</p>
+            </div>
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
           {(hasPrice || hasPreOrder) && (
             <div className="absolute top-4 right-4 bg-black/70 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 flex items-center gap-2">
               {hasPrice && (
@@ -81,12 +91,18 @@ export default function ProductCard({ product, onAddToCart, onBuyNow, isLarge }:
       whileTap={{ scale: 0.98 }}
       className="bg-[#1c1c1e] rounded-[28px] p-4 flex gap-4 items-center group cursor-pointer border border-white/5 hover:border-white/10 transition-all"
     >
-      <div className="w-20 h-20 rounded-[24px] overflow-hidden bg-black flex-shrink-0 border border-white/5">
-        <img 
-          src={product.imageUrl} 
-          alt={product.name} 
-          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
-        />
+      <div className="w-20 h-20 rounded-[24px] overflow-hidden bg-black/60 flex-shrink-0 border border-white/5 flex items-center justify-center">
+        {!imgError && product.imageUrl ? (
+          <img 
+            src={product.imageUrl} 
+            alt={product.name} 
+            referrerPolicy="no-referrer"
+            onError={() => setImgError(true)}
+            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
+          />
+        ) : (
+          <Package className="w-8 h-8 text-white/30" />
+        )}
       </div>
       
       <div className="flex-grow min-w-0">
