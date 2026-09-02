@@ -13,7 +13,7 @@ export default function SuccessAnimation({ order, onClose, onTraceOrder }: Succe
   const downloadReceipt = () => {
     const text = `
 -----------------------------------------
-      INZARA PROTOCOL RECEIPT
+         FLAIR FIORA RECEIPT
 -----------------------------------------
 Order ID: ${order.id}
 Invoice: ${order.invoiceId}

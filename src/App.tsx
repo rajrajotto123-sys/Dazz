@@ -141,8 +141,6 @@ export default function App() {
         onInfoClick={() => setIsInfoOpen(true)} 
         onCartClick={() => setIsCartOpen(true)}
         cartCount={cartCount}
-        isAdmin={true}
-        onAdminClick={() => setActiveTab('admin')}
       />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-8 pt-6">

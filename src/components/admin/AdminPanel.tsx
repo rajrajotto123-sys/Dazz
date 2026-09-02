@@ -14,8 +14,10 @@ import {
   X,
   Image as ImageIcon,
   Upload,
-  ShieldCheck
+  ShieldCheck,
+  Check
 } from 'lucide-react';
+import FlairFioraLogo from '../common/FlairFioraLogo';
 import { 
   collection, 
   onSnapshot, 
@@ -100,11 +102,11 @@ export default function AdminPanel({ settings }: AdminPanelProps) {
     <div className="space-y-8 pb-32 max-w-2xl mx-auto px-4">
       <div className="flex justify-between items-center bg-[#1c1c1e] p-5 rounded-[32px] border border-white/5">
         <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center border border-white/10 ring-2 ring-cyber-blue/20">
-            <ShieldCheck className="text-cyber-blue w-8 h-8" />
+          <div className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center border border-white/10 ring-2 ring-white/20 p-2.5">
+            <FlairFioraLogo className="w-8 h-8" />
           </div>
           <div>
-            <p className="text-[10px] text-white/40 uppercase font-black tracking-widest mb-0.5">Terminal Active</p>
+            <p className="text-[10px] text-white/40 uppercase font-black tracking-widest mb-0.5">Flair Fiora Terminal</p>
             <p className="font-bold text-white text-lg italic">ADMIN NODE</p>
           </div>
         </div>
@@ -498,10 +500,15 @@ function SettingsManager({ settings }: { settings: Settings }) {
 
   return (
     <div className="space-y-6">
-      <div className="bg-[#1c1c1e] rounded-[32px] p-8 space-y-6 border border-white/5">
+      <div className="bg-[#1c1c1e] rounded-[32px] p-6 sm:p-8 space-y-6 border border-white/5 shadow-xl">
         <div className="flex items-center gap-3 mb-2">
-          <SettingsIcon className="w-6 h-6 text-cyber-purple" />
-          <h3 className="text-xl font-bold text-white uppercase tracking-widest">System Info</h3>
+          <div className="w-10 h-10 rounded-[14px] bg-gradient-to-b from-purple-500/20 to-purple-950/40 border border-purple-500/30 flex items-center justify-center text-purple-400 shadow-[0_0_12px_rgba(168,85,247,0.25)]">
+            <SettingsIcon className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-white tracking-wide">System Info</h3>
+            <p className="text-[10px] text-white/40 uppercase tracking-widest">Storefront Configurations</p>
+          </div>
         </div>
         <div className="space-y-4">
           <div className="space-y-1">
@@ -510,7 +517,7 @@ function SettingsManager({ settings }: { settings: Settings }) {
           </div>
           <div className="space-y-1">
             <label className="text-[10px] font-bold text-white/30 uppercase tracking-[0.2em] ml-2">Email Relay</label>
-            <input placeholder="support@inzara.com" className="admin-input" value={form.email} onChange={e => setForm({...form, email: e.target.value})} />
+            <input placeholder="support@flairfiora.com" className="admin-input" value={form.email} onChange={e => setForm({...form, email: e.target.value})} />
           </div>
           <div className="space-y-1">
             <label className="text-[10px] font-bold text-white/30 uppercase tracking-[0.2em] ml-2">Node Address</label>
@@ -525,9 +532,9 @@ function SettingsManager({ settings }: { settings: Settings }) {
           onClick={saveInfo} 
           disabled={isSaving}
           className={cn(
-            "w-full h-16 text-white font-bold rounded-[22px] active:scale-[0.98] transition-all shadow-xl",
-            showSuccess ? "bg-cyber-green shadow-cyber-green/20" : "bg-cyber-purple shadow-cyber-purple/10",
-            errorText && "bg-red-500 shadow-red-500/20",
+            "w-full h-14 text-white font-bold rounded-[20px] active:scale-[0.98] transition-all shadow-xl",
+            showSuccess ? "bg-emerald-500 shadow-emerald-500/30" : "bg-gradient-to-r from-purple-600 to-indigo-600 shadow-purple-600/30 hover:brightness-110",
+            errorText && "bg-rose-600 shadow-rose-600/30",
             isSaving && "opacity-50 cursor-wait"
           )}
         >
@@ -535,54 +542,150 @@ function SettingsManager({ settings }: { settings: Settings }) {
         </button>
       </div>
 
-      <div className="bg-[#1c1c1e] rounded-[32px] p-8 space-y-6 border border-white/5">
+      <div className="bg-[#1c1c1e] rounded-[32px] p-6 sm:p-8 space-y-6 border border-white/5 shadow-xl">
         <div className="flex items-center gap-3">
-           <ImageIcon className="w-6 h-6 text-cyber-blue" />
-           <h3 className="text-xl font-bold text-white uppercase tracking-widest">Visual Assets</h3>
+           <div className="w-10 h-10 rounded-[14px] bg-gradient-to-b from-cyan-500/20 to-cyan-950/40 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shadow-[0_0_12px_rgba(6,182,212,0.25)]">
+             <ImageIcon className="w-5 h-5" />
+           </div>
+           <div>
+             <h3 className="text-lg font-bold text-white tracking-wide">Visual Banners</h3>
+             <p className="text-[10px] text-white/40 uppercase tracking-widest">Storefront Carousel & Text Badges</p>
+           </div>
         </div>
         
         <div className="space-y-4">
           <button 
             onClick={() => bannerFileInputRef.current?.click()}
-            className="w-full py-10 border-2 border-dashed border-white/10 rounded-[28px] flex flex-col items-center justify-center gap-3 hover:bg-white/5 transition-colors group"
+            className="w-full py-8 border-2 border-dashed border-white/10 rounded-[24px] flex flex-col items-center justify-center gap-2 hover:bg-white/5 hover:border-cyan-400/40 transition-all group"
           >
-            <div className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center text-cyber-blue group-hover:scale-110 transition-transform">
-              <Upload className="w-6 h-6" />
+            <div className="w-12 h-12 rounded-[16px] bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 group-hover:scale-110 transition-transform shadow-[0_0_15px_rgba(6,182,212,0.2)]">
+              <Upload className="w-5 h-5" />
             </div>
-            <p className="text-sm font-bold text-white/40">Select Local Banner Frame</p>
+            <p className="text-xs font-bold text-white/60 group-hover:text-white transition-colors">Upload New Banner Frame</p>
+            <p className="text-[10px] text-white/30">PNG, JPG or WEBP (Max 800KB)</p>
           </button>
           <input type="file" ref={bannerFileInputRef} onChange={handleBannerUpload} className="hidden" accept="image/*" />
 
-          <div className="grid grid-cols-1 gap-4">
-            {banners.map(b => (
-              <div key={b.id} className="relative group rounded-[28px] overflow-hidden bg-black border border-white/5 p-4 flex gap-4 items-center">
-                <div className="w-24 h-16 rounded-xl overflow-hidden border border-white/10 flex-shrink-0">
-                  <img src={b.url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                </div>
-                <div className="flex-grow flex flex-col gap-2">
-                  <div className="relative group/input">
-                    <input 
-                      placeholder="Visual Active Text..." 
-                      className="admin-input h-12 py-0 text-sm pr-12 focus:border-cyber-blue" 
-                      defaultValue={b.text || ''} 
-                      onBlur={e => saveBannerText(b.id, e.target.value)}
-                    />
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[8px] font-black text-white/10 group-focus-within/input:text-cyber-blue uppercase tracking-widest transition-colors">
-                      Auto-Save
-                    </div>
-                  </div>
-                  <div className="flex justify-between items-center px-1">
-                    <span className="text-[10px] text-white/20 font-bold uppercase tracking-widest">Frame {b.order + 1}</span>
-                    <button 
-                      onClick={() => deleteBanner(b.id)}
-                      className="text-cyber-pink/50 hover:text-cyber-pink transition-colors font-bold text-[10px] uppercase tracking-widest"
-                    >
-                      Purge
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
+          {banners.length === 0 ? (
+            <p className="text-center text-xs text-white/30 py-4">No banners active. Upload one above.</p>
+          ) : (
+            <div className="grid grid-cols-1 gap-4">
+              {banners.map(b => (
+                <BannerItemRow 
+                  key={b.id} 
+                  banner={b} 
+                  onSaveText={(text) => saveBannerText(b.id, text)}
+                  onDelete={() => deleteBanner(b.id)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BannerItemRow({ 
+  banner, 
+  onSaveText, 
+  onDelete 
+}: { 
+  key?: string;
+  banner: BannerImage; 
+  onSaveText: (text: string) => Promise<void>; 
+  onDelete: () => void | Promise<void>;
+}) {
+  const [textVal, setTextVal] = useState(banner.text || '');
+  const [isSaved, setIsSaved] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    setTextVal(banner.text || '');
+  }, [banner.text]);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      await onSaveText(textVal);
+      setIsSaved(true);
+      setTimeout(() => setIsSaved(false), 2500);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div className="rounded-[24px] overflow-hidden bg-black/60 border border-white/10 p-4 space-y-3">
+      <div className="flex gap-4 items-start">
+        {/* Thumbnail with text overlay preview */}
+        <div className="relative w-28 h-20 rounded-[14px] overflow-hidden border border-white/10 flex-shrink-0 bg-slate-900 group">
+          <img 
+            src={banner.url} 
+            alt="Banner thumbnail" 
+            className="w-full h-full object-cover" 
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
+          {textVal.trim().length > 0 && (
+            <div className="absolute bottom-1 left-1 right-1 pointer-events-none">
+              <span className="block text-[8px] font-black text-white bg-black/70 backdrop-blur-sm px-1.5 py-0.5 rounded-[6px] truncate border border-white/10">
+                {textVal}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Text Input & Controls */}
+        <div className="flex-grow space-y-2">
+          <div className="flex justify-between items-center">
+            <span className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest">
+              Frame {banner.order + 1}
+            </span>
+            <button 
+              onClick={onDelete}
+              className="text-rose-400/70 hover:text-rose-400 transition-colors font-bold text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-lg hover:bg-rose-500/10"
+            >
+              Delete
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input 
+              type="text"
+              placeholder="Banner headline text..." 
+              className="admin-input h-10 py-0 text-xs flex-grow focus:border-cyan-400" 
+              value={textVal} 
+              onChange={(e) => {
+                setTextVal(e.target.value);
+                setIsSaved(false);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSave();
+              }}
+            />
+            <button
+              onClick={handleSave}
+              disabled={isSaving}
+              className={cn(
+                "h-10 px-3.5 rounded-[14px] text-xs font-bold transition-all flex items-center gap-1.5 flex-shrink-0",
+                isSaved 
+                  ? "bg-emerald-500 text-white shadow-[0_0_12px_rgba(16,185,129,0.4)]"
+                  : "bg-cyan-500 text-black hover:bg-cyan-400 shadow-[0_0_12px_rgba(6,182,212,0.3)] active:scale-95"
+              )}
+            >
+              {isSaved ? (
+                <>
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Saved</span>
+                </>
+              ) : isSaving ? (
+                <span>...</span>
+              ) : (
+                <span>Save</span>
+              )}
+            </button>
           </div>
         </div>
       </div>

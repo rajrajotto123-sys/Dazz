@@ -11,64 +11,80 @@ export default function Banner({ images }: BannerProps) {
   const [current, setCurrent] = useState(0);
 
   useEffect(() => {
-    if (images.length === 0) return;
+    if (images.length <= 1) return;
     const timer = setInterval(() => {
       setCurrent((prev) => (prev + 1) % images.length);
-    }, 6000);
+    }, 5500);
     return () => clearInterval(timer);
   }, [images.length]);
 
+  if (!images || images.length === 0) return null;
+
+  const currentBanner = images[current];
+
   return (
-    <div className="relative h-48 sm:h-64 w-full rounded-[32px] overflow-hidden group border border-white/5">
+    <div className="relative h-36 sm:h-44 md:h-48 w-full rounded-[24px] sm:rounded-[28px] overflow-hidden group border border-white/[0.08] shadow-[0_12px_36px_rgba(0,0,0,0.6)]">
       <AnimatePresence mode="wait">
         <motion.div
-          key={images[current]?.id || 'empty'}
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -20 }}
-          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          key={currentBanner?.id || current}
+          initial={{ opacity: 0, scale: 1.02 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.98 }}
+          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
           className="absolute inset-0"
         >
-          {images[current] ? (
+          {currentBanner?.url ? (
             <img 
-              src={images[current]?.url} 
-              alt="Promotion" 
+              src={currentBanner.url} 
+              alt={currentBanner.text || "Boutique Banner"} 
               className="w-full h-full object-cover select-none"
               loading="lazy"
             />
           ) : (
-             <div className="w-full h-full bg-slate-900 flex items-center justify-center text-white/20 uppercase tracking-widest font-bold">
-               Awaiting Visuals
-             </div>
+            <div className="w-full h-full bg-slate-900/80 flex items-center justify-center text-white/25 uppercase tracking-widest font-bold text-xs">
+              Flair Fiora Visual
+            </div>
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/10 to-transparent" />
           
-          <div className="absolute bottom-6 left-8">
-            <motion.h2 
-               key={images[current]?.text || 'default'}
-               initial={{ opacity: 0, y: 10 }}
-               animate={{ opacity: 1, y: 0 }}
-               transition={{ delay: 0.4 }}
-               className="text-2xl sm:text-3xl font-black font-display leading-tight uppercase tracking-tight"
-            >
-              {images[current]?.text || "New Collections '26"}
-            </motion.h2>
-          </div>
+          {/* Subtle Ambient Shading */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
+          
+          {/* Banner Text Tag (Rendered with high legibility) */}
+          {currentBanner?.text && currentBanner.text.trim().length > 0 && (
+            <div className="absolute bottom-4 left-4 sm:left-6 max-w-[70%] sm:max-w-[75%] pointer-events-none">
+              <motion.div 
+                key={currentBanner.text}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2, duration: 0.4 }}
+                className="backdrop-blur-md bg-black/60 border border-white/15 px-3 sm:px-4 py-1.5 sm:py-2 rounded-[14px] sm:rounded-[18px] shadow-[0_4px_16px_rgba(0,0,0,0.5)]"
+              >
+                <h2 className="text-sm sm:text-base md:text-lg font-black text-white tracking-wide leading-tight drop-shadow-md truncate">
+                  {currentBanner.text}
+                </h2>
+              </motion.div>
+            </div>
+          )}
         </motion.div>
       </AnimatePresence>
 
-      <div className="absolute bottom-6 right-8 flex gap-2 p-2 bg-black/40 backdrop-blur-md rounded-full border border-white/5">
-        {images.map((_, i) => (
-          <button
-            key={i}
-            onClick={() => setCurrent(i)}
-            className={cn(
-              "h-2 rounded-full transition-all duration-700",
-              current === i ? "w-8 bg-white" : "w-2 bg-white/20 hover:bg-white/40"
-            )}
-          />
-        ))}
-      </div>
+      {/* Pagination indicators */}
+      {images.length > 1 && (
+        <div className="absolute bottom-3.5 right-4 sm:right-6 flex gap-1.5 p-1.5 bg-black/60 backdrop-blur-xl rounded-full border border-white/10 shadow-lg">
+          {images.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => setCurrent(i)}
+              aria-label={`Go to slide ${i + 1}`}
+              className={cn(
+                "h-1.5 rounded-full transition-all duration-500",
+                current === i ? "w-6 bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)]" : "w-1.5 bg-white/30 hover:bg-white/60"
+              )}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
+
