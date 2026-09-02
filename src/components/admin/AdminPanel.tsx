@@ -15,9 +15,13 @@ import {
   Image as ImageIcon,
   Upload,
   ShieldCheck,
-  Check
+  Check,
+  AlertTriangle,
+  CheckCircle2,
+  Loader2
 } from 'lucide-react';
 import FlairFioraLogo from '../common/FlairFioraLogo';
+import PreOrderBadge from '../common/PreOrderBadge';
 import { 
   collection, 
   onSnapshot, 
@@ -161,9 +165,24 @@ function ProductManager() {
   const [products, setProducts] = useState<Product[]>([]);
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [formData, setFormData] = useState({ name: '', description: '', price: '', imageUrl: '' });
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    price: '',
+    imageUrl: '',
+    isPreOrder: false
+  });
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
+  
+  // Deletion modal state
+  const [deleteCandidate, setDeleteCandidate] = useState<Product | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteSuccess, setDeleteSuccess] = useState<string | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -172,42 +191,128 @@ function ProductManager() {
     });
   }, []);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
+  const MAX_IMAGE_BYTES = 2 * 1024 * 1024; // 2 MB (2,048 KB)
+  const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+
+  const processImageFile = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      // Enforce 2 MB limit
+      if (file.size > MAX_IMAGE_BYTES) {
+        const sizeMb = (file.size / (1024 * 1024)).toFixed(2);
+        reject(new Error(`File size (${sizeMb} MB) exceeds the 2 MB (2,048 KB) maximum limit. Please select an image under 2 MB.`));
+        return;
+      }
+
+      // Format validation
+      const type = file.type.toLowerCase();
+      const validExtension = /\.(jpe?g|png|webp)$/i.test(file.name);
+      if (!ALLOWED_MIME_TYPES.includes(type) && !validExtension) {
+        reject(new Error('Unsupported file format. Please upload a JPG, PNG, or WEBP image.'));
+        return;
+      }
+
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData(prev => ({ ...prev, imageUrl: reader.result as string }));
+      reader.onerror = () => reject(new Error('Failed to read image file.'));
+      reader.onload = () => {
+        const img = new Image();
+        img.onerror = () => reject(new Error('Failed to parse image data.'));
+        img.onload = () => {
+          // Preserve high image quality (max dimension 1600px for crisp display)
+          const maxDim = 1600;
+          let width = img.naturalWidth || img.width;
+          let height = img.naturalHeight || img.height;
+
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(reader.result as string);
+            return;
+          }
+
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Use high quality (0.92)
+          const outputMime = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+          const dataUrl = canvas.toDataURL(outputMime, 0.92);
+          resolve(dataUrl);
+        };
+        img.src = reader.result as string;
       };
       reader.readAsDataURL(file);
+    });
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    setImageError(null);
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsProcessingImage(true);
+    try {
+      const processedUrl = await processImageFile(file);
+      setFormData(prev => ({ ...prev, imageUrl: processedUrl }));
+    } catch (err: any) {
+      setImageError(err.message || 'Image upload failed.');
+    } finally {
+      setIsProcessingImage(false);
+      // Reset file input so user can re-select the same file if needed
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
   const resetForm = () => {
-    setFormData({ name: '', description: '', price: '', imageUrl: '' });
+    setFormData({ name: '', description: '', price: '', imageUrl: '', isPreOrder: false });
     setIsAdding(false);
     setEditingId(null);
+    setImageError(null);
+    setSaveError(null);
   };
 
   const handleEdit = (p: Product) => {
     setFormData({ 
       name: p.name, 
-      description: p.description, 
-      price: p.price.toString(), 
-      imageUrl: p.imageUrl 
+      description: p.description || '', 
+      price: (p.price !== undefined && p.price !== null && !isNaN(Number(p.price))) ? p.price.toString() : '', 
+      imageUrl: p.imageUrl,
+      isPreOrder: Boolean(p.isPreOrder)
     });
     setEditingId(p.id);
     setIsAdding(true);
+    setImageError(null);
+    setSaveError(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
     setSaveError(null);
+
+    // Optional price calculation: if empty, store null. No mandatory validation!
+    const parsedPrice = formData.price.trim() !== '' && !isNaN(parseFloat(formData.price))
+      ? parseFloat(formData.price)
+      : null;
+
     try {
-      const data = {
-        ...formData,
-        price: parseFloat(formData.price),
+      const data: any = {
+        name: formData.name.trim(),
+        description: formData.description.trim(),
+        price: parsedPrice,
+        imageUrl: formData.imageUrl.trim(),
+        isPreOrder: Boolean(formData.isPreOrder),
         updatedAt: serverTimestamp()
       };
 
@@ -221,27 +326,65 @@ function ProductManager() {
       }
       resetForm();
     } catch (err: any) { 
-      setSaveError(err.message || 'Transmission error');
+      setSaveError(err.message || 'Transmission error saving product.');
       handleFirestoreError(err, OperationType.WRITE, 'products'); 
+    } finally {
+      setIsSaving(false);
     }
-    finally { setIsSaving(false); }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Destroy this record from inventory?')) return;
-    try { await deleteDoc(doc(db, 'products', id)); }
-    catch (err) { handleFirestoreError(err, OperationType.DELETE, 'products'); }
+  const openDeleteModal = (p: Product) => {
+    setDeleteError(null);
+    setDeleteCandidate(p);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteCandidate) return;
+    setIsDeleting(true);
+    setDeleteError(null);
+    try {
+      // Execute permanent database delete
+      await deleteDoc(doc(db, 'products', deleteCandidate.id));
+      const deletedName = deleteCandidate.name;
+      setDeleteCandidate(null);
+      setDeleteSuccess(`"${deletedName}" permanently deleted from database.`);
+      setTimeout(() => setDeleteSuccess(null), 4000);
+    } catch (err: any) {
+      console.error('Failed to permanently delete product:', err);
+      setDeleteError(err.message || 'Database deletion failed. Please check network connection and try again.');
+      handleFirestoreError(err, OperationType.DELETE, 'products');
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   return (
     <div className="space-y-6">
+      {/* Toast notifications */}
+      <AnimatePresence>
+        {deleteSuccess && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 p-4 rounded-2xl flex items-center gap-3 text-sm font-bold shadow-lg"
+          >
+            <CheckCircle2 className="w-5 h-5 shrink-0" />
+            <span>{deleteSuccess}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="flex justify-between items-center px-2">
-        <h3 className="text-xl font-bold text-white uppercase tracking-widest">{editingId ? 'Modify Record' : 'Stock Control'}</h3>
+        <div>
+          <h3 className="text-xl font-bold text-white uppercase tracking-widest">{editingId ? 'Modify Record' : 'Stock Control'}</h3>
+          <p className="text-xs text-white/40 mt-0.5">{products.length} Products in Inventory</p>
+        </div>
         <button 
           onClick={() => isAdding ? resetForm() : setIsAdding(true)}
           className={cn(
             "w-12 h-12 rounded-2xl flex items-center justify-center transition-all",
-            isAdding ? "bg-white/10 text-white" : "bg-cyber-blue text-black shadow-lg shadow-cyber-blue/20"
+            isAdding ? "bg-white/10 text-white" : "bg-cyber-blue text-black shadow-lg shadow-cyber-blue/20 hover:scale-105 active:scale-95"
           )}
         >
           {isAdding ? <X className="w-5 h-5" /> : <Plus className="w-6 h-6" />}
@@ -255,81 +398,326 @@ function ProductManager() {
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             onSubmit={handleSubmit} 
-            className="glass-card bg-[#1c1c1e] p-6 space-y-4 overflow-hidden"
+            className="glass-card bg-[#1c1c1e] p-6 space-y-5 overflow-hidden border border-white/10 rounded-[32px]"
           >
+            <div className="flex justify-between items-center pb-3 border-b border-white/5">
+              <h4 className="text-sm font-bold text-white uppercase tracking-wider">
+                {editingId ? 'Edit Product Details' : 'New Product Registration'}
+              </h4>
+              <button 
+                type="button" 
+                onClick={resetForm} 
+                className="text-white/40 hover:text-white text-xs font-bold"
+              >
+                Cancel
+              </button>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <input required placeholder="Product Name" className="admin-input" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
-              <input required type="number" step="0.01" placeholder="Price" className="admin-input" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} />
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest ml-2">Product Name *</label>
+                <input 
+                  required 
+                  placeholder="e.g. Cybernetic Silk Scarf" 
+                  className="admin-input" 
+                  value={formData.name} 
+                  onChange={e => setFormData({...formData, name: e.target.value})} 
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest ml-2">Price in BDT (Optional)</label>
+                <input 
+                  type="number" 
+                  step="0.01" 
+                  min="0"
+                  placeholder="Leave blank for no price" 
+                  className="admin-input" 
+                  value={formData.price} 
+                  onChange={e => setFormData({...formData, price: e.target.value})} 
+                />
+              </div>
+            </div>
+
+            {/* Pre-Order Toggle */}
+            <div className="bg-black/40 p-4 rounded-2xl border border-white/5 flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2.5">
+                  <span className="text-sm font-bold text-white">Pre-Order Feature</span>
+                  {formData.isPreOrder ? (
+                    <PreOrderBadge size="sm" />
+                  ) : (
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-white/40 bg-white/5 px-2 py-0.5 rounded-full border border-white/5">
+                      OFF
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-white/40 mt-1">
+                  {formData.isPreOrder
+                    ? 'Active: Shows red animated PRE-ORDER label beside product price'
+                    : 'Inactive: Product displayed normally without pre-order badge'}
+                </p>
+              </div>
+              
+              <button
+                type="button"
+                onClick={() => setFormData(prev => ({ ...prev, isPreOrder: !prev.isPreOrder }))}
+                className={cn(
+                  "relative inline-flex h-8 w-14 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
+                  formData.isPreOrder ? "bg-red-500 shadow-[0_0_15px_rgba(239,68,68,0.5)]" : "bg-white/10"
+                )}
+                aria-label="Toggle Pre-Order"
+              >
+                <span
+                  className={cn(
+                    "pointer-events-none inline-block h-7 w-7 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out",
+                    formData.isPreOrder ? "translate-x-6" : "translate-x-0"
+                  )}
+                />
+              </button>
             </div>
             
-            <div className="flex gap-3">
-               <input 
-                type="text" 
-                required 
-                placeholder="Image URL or Upload..." 
-                className="admin-input flex-grow" 
-                value={formData.imageUrl} 
-                onChange={e => setFormData({...formData, imageUrl: e.target.value})} 
-              />
-              <button 
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="w-14 h-14 shrink-0 glass-button flex items-center justify-center text-cyber-blue"
-              >
-                <Upload className="w-6 h-6" />
-              </button>
-              <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
+            {/* Image Upload Area */}
+            <div className="space-y-2">
+              <div className="flex justify-between items-center ml-2">
+                <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Product Image *</label>
+                <span className="text-[10px] text-white/30">JPG, PNG, WEBP (Max 2 MB)</span>
+              </div>
+              <div className="flex gap-3">
+                <input 
+                  type="text" 
+                  required 
+                  placeholder="Paste Image URL or click Upload button..." 
+                  className="admin-input flex-grow" 
+                  value={formData.imageUrl} 
+                  onChange={e => setFormData({...formData, imageUrl: e.target.value})} 
+                />
+                <button 
+                  type="button"
+                  disabled={isProcessingImage}
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-14 h-14 shrink-0 glass-button flex items-center justify-center text-cyber-blue hover:text-white transition-all disabled:opacity-50"
+                  title="Upload Image (Max 2 MB)"
+                >
+                  {isProcessingImage ? <Loader2 className="w-6 h-6 animate-spin text-cyber-blue" /> : <Upload className="w-6 h-6" />}
+                </button>
+                <input 
+                  type="file" 
+                  ref={fileInputRef} 
+                  onChange={handleFileChange} 
+                  className="hidden" 
+                  accept="image/jpeg,image/png,image/webp" 
+                />
+              </div>
+
+              {/* Explicit Image Error Display */}
+              {imageError && (
+                <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-xl flex items-center gap-2 text-xs font-bold">
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  <span>{imageError}</span>
+                </div>
+              )}
             </div>
 
             {formData.imageUrl && (
-              <div className="w-full h-40 rounded-2xl overflow-hidden border border-white/5 relative group">
-                <img src={formData.imageUrl} className="w-full h-full object-cover" />
+              <div className="w-full h-44 rounded-2xl overflow-hidden border border-white/10 relative group bg-black">
+                <img src={formData.imageUrl} alt="Preview" className="w-full h-full object-cover" />
+                <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/10 flex items-center gap-2">
+                  <span className="text-[10px] font-bold text-white/80">Image Ready</span>
+                  {formData.isPreOrder && <PreOrderBadge size="sm" />}
+                </div>
                 <button 
                   type="button"
                   onClick={() => setFormData({...formData, imageUrl: ''})}
-                  className="absolute top-4 right-4 w-8 h-8 bg-black/60 backdrop-blur-md rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="absolute top-3 right-3 w-8 h-8 bg-black/70 backdrop-blur-md rounded-full flex items-center justify-center text-white hover:bg-red-500 transition-colors"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
             )}
 
-            <textarea required placeholder="Description" rows={3} className="admin-input resize-none" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest ml-2">Description</label>
+              <textarea 
+                placeholder="Details, materials, sizing guidelines..." 
+                rows={3} 
+                className="admin-input resize-none" 
+                value={formData.description} 
+                onChange={e => setFormData({...formData, description: e.target.value})} 
+              />
+            </div>
+
             <button 
-              disabled={isSaving}
+              disabled={isSaving || isProcessingImage}
               type="submit" 
               className={cn(
-                "w-full h-16 text-black font-bold rounded-2xl active:scale-[0.98] transition-transform disabled:opacity-50",
-                saveError ? "bg-red-500 text-white" : "bg-white"
+                "w-full h-16 font-bold rounded-2xl active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-2",
+                saveError ? "bg-red-500 text-white" : "bg-white text-black hover:bg-white/90 shadow-[0_4px_24px_rgba(255,255,255,0.15)]"
               )}
             >
-              {isSaving ? 'Processing Gateway...' : saveError ? saveError : editingId ? 'Commit Update' : 'Initialize Product'}
+              {isSaving ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Saving to Database...</span>
+                </>
+              ) : saveError ? (
+                <span>{saveError}</span>
+              ) : (
+                <span>{editingId ? 'Commit Changes' : 'Publish Product to Store'}</span>
+              )}
             </button>
           </motion.form>
         )}
       </AnimatePresence>
 
       <div className="grid grid-cols-1 gap-4">
-        {products.map(p => (
-          <div key={p.id} className="bg-[#1c1c1e] rounded-[28px] p-5 flex gap-5 items-center border border-white/5 hover:border-white/10 transition-colors group">
-            <div className="w-20 h-20 rounded-2xl overflow-hidden border border-white/10 bg-black flex-shrink-0">
-              <img src={p.imageUrl} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-            </div>
-            <div className="flex-grow min-w-0">
-              <h4 className="font-bold text-white truncate text-lg">{p.name}</h4>
-              <p className="text-cyber-blue font-bold tracking-tight">{formatCurrency(p.price)}</p>
-            </div>
-            <div className="flex gap-2">
-              <button onClick={() => handleEdit(p)} className="w-12 h-12 glass-button text-cyber-blue/50 hover:text-cyber-blue hover:bg-cyber-blue/10">
-                <SettingsIcon className="w-5 h-5" />
-              </button>
-              <button onClick={() => handleDelete(p.id)} className="w-12 h-12 glass-button text-red-500/50 hover:text-red-500 hover:bg-red-500/10">
-                <Trash2 className="w-5 h-5" />
-              </button>
-            </div>
+        {products.length === 0 ? (
+          <div className="bg-[#1c1c1e] rounded-[28px] p-10 text-center border border-white/5 space-y-2">
+            <Package className="w-10 h-10 text-white/20 mx-auto" />
+            <p className="text-white/40 font-bold text-sm">No products in inventory</p>
+            <p className="text-white/20 text-xs">Click the + button above to add your first item.</p>
           </div>
-        ))}
+        ) : (
+          products.map(p => {
+            const hasPrice = p.price !== undefined && p.price !== null && !isNaN(Number(p.price));
+            const hasPreOrder = Boolean(p.isPreOrder);
+
+            return (
+              <div key={p.id} className="bg-[#1c1c1e] rounded-[28px] p-5 flex gap-5 items-center border border-white/5 hover:border-white/10 transition-colors group">
+                <div className="w-20 h-20 rounded-2xl overflow-hidden border border-white/10 bg-black flex-shrink-0 relative">
+                  <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                </div>
+                <div className="flex-grow min-w-0">
+                  <h4 className="font-bold text-white truncate text-lg">{p.name}</h4>
+                  {(hasPrice || hasPreOrder) ? (
+                    <div className="flex items-center gap-2.5 mt-1 flex-wrap">
+                      {hasPrice && (
+                        <span className="text-cyber-blue font-bold tracking-tight text-sm">{formatCurrency(Number(p.price))}</span>
+                      )}
+                      {hasPreOrder && (
+                        <PreOrderBadge size="sm" />
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-white/30 text-xs italic mt-0.5">No price set</p>
+                  )}
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <button 
+                    onClick={() => handleEdit(p)} 
+                    className="w-12 h-12 glass-button text-cyber-blue/70 hover:text-cyber-blue hover:bg-cyber-blue/10 flex items-center justify-center transition-colors"
+                    title="Edit Product"
+                  >
+                    <SettingsIcon className="w-5 h-5" />
+                  </button>
+                  <button 
+                    onClick={() => openDeleteModal(p)} 
+                    className="w-12 h-12 glass-button text-red-500/70 hover:text-red-500 hover:bg-red-500/10 flex items-center justify-center transition-colors"
+                    title="Delete Product"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
+
+      {/* Permanent Deletion Confirmation Modal */}
+      <AnimatePresence>
+        {deleteCandidate && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => !isDeleting && setDeleteCandidate(null)}
+              className="absolute inset-0 bg-black/85 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="relative z-10 w-full max-w-md bg-[#1c1c1e] border border-red-500/20 rounded-[32px] p-6 sm:p-8 space-y-6 shadow-[0_20px_60px_rgba(0,0,0,0.8)] overflow-hidden"
+            >
+              <div className="flex items-center gap-3 text-red-400">
+                <div className="w-12 h-12 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-6 h-6 text-red-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white">Permanently Delete Product?</h3>
+                  <p className="text-[10px] text-red-400 font-bold uppercase tracking-widest">Database Record Destruction</p>
+                </div>
+              </div>
+
+              {/* Product preview */}
+              <div className="flex items-center gap-4 bg-black/50 p-4 rounded-2xl border border-white/5">
+                <img 
+                  src={deleteCandidate.imageUrl} 
+                  alt={deleteCandidate.name} 
+                  className="w-16 h-16 rounded-xl object-cover border border-white/10 shrink-0" 
+                />
+                <div className="min-w-0 flex-grow">
+                  <p className="text-sm font-bold text-white truncate">{deleteCandidate.name}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    {deleteCandidate.price !== undefined && deleteCandidate.price !== null && !isNaN(Number(deleteCandidate.price)) ? (
+                      <span className="text-xs text-cyber-blue font-bold">{formatCurrency(Number(deleteCandidate.price))}</span>
+                    ) : (
+                      <span className="text-xs text-white/40 italic">No price</span>
+                    )}
+                    {deleteCandidate.isPreOrder && <PreOrderBadge size="sm" />}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2 text-xs text-white/60">
+                <p>
+                  This will <span className="text-red-400 font-bold">permanently erase</span> this product from the Firestore database.
+                </p>
+                <p>
+                  The item will immediately disappear and will <span className="text-white font-bold">not return</span> after refreshing or reopening the website.
+                </p>
+              </div>
+
+              {deleteError && (
+                <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-3 rounded-xl text-xs font-bold flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  <span>{deleteError}</span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3 pt-2">
+                <button
+                  type="button"
+                  disabled={isDeleting}
+                  onClick={() => setDeleteCandidate(null)}
+                  className="h-12 rounded-xl bg-white/5 hover:bg-white/10 text-white/70 hover:text-white font-bold text-sm transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isDeleting}
+                  onClick={confirmDelete}
+                  className="h-12 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-50 shadow-lg shadow-red-600/30 active:scale-95"
+                >
+                  {isDeleting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Deleting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4" />
+                      <span>Delete Forever</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -467,22 +855,55 @@ function SettingsManager({ settings }: { settings: Settings }) {
   const handleBannerUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 800000) {
-        alert('File too large. Maximum size is 800KB for terminal storage.');
+      const maxBytes = 2 * 1024 * 1024; // 2 MB
+      if (file.size > maxBytes) {
+        alert(`File size (${(file.size / (1024 * 1024)).toFixed(2)} MB) exceeds the 2 MB limit.`);
         return;
       }
+
       const reader = new FileReader();
-      reader.onloadend = async () => {
-        try {
-          await addDoc(collection(db, 'banners'), { 
-            url: reader.result as string, 
-            order: banners.length, 
-            createdAt: serverTimestamp() 
-          });
-        } catch (err: any) { 
-          alert('Upload failed: ' + (err.message || 'Permission denied or quota exceeded'));
-          handleFirestoreError(err, OperationType.CREATE, 'banners'); 
-        }
+      reader.onloadend = () => {
+        const img = new Image();
+        img.onload = async () => {
+          const maxDim = 1920;
+          let width = img.naturalWidth || img.width;
+          let height = img.naturalHeight || img.height;
+
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          let finalUrl = reader.result as string;
+
+          if (ctx) {
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            ctx.drawImage(img, 0, 0, width, height);
+            finalUrl = canvas.toDataURL('image/jpeg', 0.88);
+          }
+
+          try {
+            await addDoc(collection(db, 'banners'), { 
+              url: finalUrl, 
+              order: banners.length, 
+              createdAt: serverTimestamp() 
+            });
+          } catch (err: any) { 
+            alert('Upload failed: ' + (err.message || 'Permission denied or quota exceeded'));
+            handleFirestoreError(err, OperationType.CREATE, 'banners'); 
+          }
+        };
+        img.src = reader.result as string;
       };
       reader.readAsDataURL(file);
     }

@@ -14,7 +14,8 @@ interface CartSheetProps {
 }
 
 export default function CartSheet({ isOpen, onClose, cart, onRemove, onUpdateQty, onCheckout, standalone }: CartSheetProps) {
-  const total = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+  const total = cart.reduce((acc, item) => acc + ((Number(item.price) || 0) * item.quantity), 0);
+  const hasItemsWithoutPrice = cart.some(item => item.price === undefined || item.price === null || isNaN(Number(item.price)));
 
   const content = (
     <div className={cn(
@@ -61,7 +62,11 @@ export default function CartSheet({ isOpen, onClose, cart, onRemove, onUpdateQty
               <div className="flex-grow flex flex-col justify-between py-1">
                 <div>
                   <h4 className="font-bold text-white text-lg leading-tight truncate">{item.productName}</h4>
-                  <p className="text-cyber-green font-bold text-sm tracking-tight">{formatCurrency(item.price)}</p>
+                  {item.price !== undefined && item.price !== null && !isNaN(Number(item.price)) ? (
+                    <p className="text-cyber-green font-bold text-sm tracking-tight">{formatCurrency(Number(item.price))}</p>
+                  ) : (
+                    <p className="text-white/40 text-xs italic mt-0.5">Pre-Order / Price on request</p>
+                  )}
                 </div>
                 
                 <div className="flex items-center justify-between">

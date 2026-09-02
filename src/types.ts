@@ -2,9 +2,11 @@ export interface Product {
   id: string;
   name: string;
   description: string;
-  price: number;
+  price?: number | null;
   imageUrl: string;
+  isPreOrder?: boolean;
   createdAt: any;
+  updatedAt?: any;
 }
 
 export interface OrderItem {

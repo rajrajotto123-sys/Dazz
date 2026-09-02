@@ -22,7 +22,7 @@ export default function CheckoutForm({ items, onClose, onSuccess }: CheckoutForm
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const total = items.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+  const total = items.reduce((acc, item) => acc + ((Number(item.price) || 0) * item.quantity), 0);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

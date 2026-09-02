@@ -7,11 +7,13 @@
       "properties": {
         "name": { "type": "string", "description": "Product name" },
         "description": { "type": "string", "description": "Product description" },
-        "price": { "type": "number", "description": "Product price" },
-        "imageUrl": { "type": "string", "description": "URL to the product image" },
-        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+        "price": { "type": "number", "description": "Product price (optional)" },
+        "imageUrl": { "type": "string", "description": "URL or data URL of the product image" },
+        "isPreOrder": { "type": "boolean", "description": "Whether the product is currently open for pre-order" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last update timestamp" }
       },
-      "required": ["name", "price", "imageUrl"]
+      "required": ["name", "imageUrl"]
     },
     "Order": {
       "title": "Order",
